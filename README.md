@@ -13,7 +13,7 @@
 $ make build
 ```
 
-### Examples
+### Example use
 
 Install and run livekit-server
 ```bash
