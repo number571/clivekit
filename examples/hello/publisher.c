@@ -3,7 +3,7 @@
 #include "clivekit.h" 
 
 int main() {
-    char room_id[LIVEKIT_DESC_SIZE];
+    char room_desc[LIVEKIT_DESC_SIZE];
 
     livekit_connect_info conn_info = {
         .host = "ws://localhost:7880",
@@ -13,7 +13,7 @@ int main() {
         .ident = "c-go-sdk-1"
     };
 
-    int status = livekit_connect_to_room(room_id, conn_info);
+    int status = livekit_connect_to_room(room_desc, conn_info);
     if (status) {
         printf("connect failed\n");
         return 1;
@@ -25,7 +25,7 @@ int main() {
     while(1) {
         for(int i = 0; i < 10; i++) {
             msg[5] = '0'+(i%10);
-            int status = livekit_write_data_to_room(room_id, "audio", msg, strlen(msg)+1);
+            int status = livekit_write_data_to_room(room_desc, "audio", msg, strlen(msg)+1);
             if (status) {
                 printf("write failed\n");
                 return 2;
@@ -35,6 +35,6 @@ int main() {
         sleep(1);
     }
 
-    livekit_disconnect_from_room(room_id);
+    livekit_disconnect_from_room(room_desc);
     return 0;
 }

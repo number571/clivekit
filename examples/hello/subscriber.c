@@ -3,8 +3,7 @@
 #include "clivekit.h" 
 
 int main() {
-    char room_id[LIVEKIT_DESC_SIZE];
-    char track_id[LIVEKIT_DESC_SIZE];
+    char room_desc[LIVEKIT_DESC_SIZE];
 
     livekit_connect_info conn_info = {
         .host = "ws://localhost:7880",
@@ -14,7 +13,7 @@ int main() {
         .ident = "c-go-sdk-2"
     };
 
-    int status = livekit_connect_to_room(room_id, conn_info);
+    int status = livekit_connect_to_room(room_desc, conn_info);
     if (status) {
         printf("connect failed\n");
         return 1;
@@ -26,10 +25,10 @@ int main() {
 
     livekit_data_packet data_packet;
     while(1){
-        int status = livekit_read_data_from_room(room_id, &data_packet);
+        int status = livekit_read_data_from_room(room_desc, &data_packet);
         printf("%s - %s - %zu - %s (%d)\n", data_packet.ident, data_packet.topic, data_packet.payload_size, data_packet.payload, ++count);
     }
 
-    livekit_disconnect_from_room(room_id);
+    livekit_disconnect_from_room(room_desc);
     return 0;
 }
