@@ -25,7 +25,7 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 #include <string.h>
 
 #define LIVEKIT_DESC_SIZE 16
-#define LIVEKIT_BUFF_SIZE 512
+#define LIVEKIT_BATCH_SIZE 512
 #define LIVEKIT_TOPIC_SIZE 64
 #define LIVEKIT_IDENT_SIZE 64
 
@@ -34,7 +34,8 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 #define LIVEKIT_ERRCODE_CLOSE       0x02
 #define LIVEKIT_ERRCODE_GET_ROOM    0x03
 #define LIVEKIT_ERRCODE_PUBLISH     0x04
-#define LIVEKIT_ERRCODE_CHAN_CLOSED 0x04
+#define LIVEKIT_ERRCODE_CHAN_CLOSED 0x05
+#define LIVEKIT_ERRCODE_BATCH_SIZE  0x06
 
 typedef struct {
 	char *host;
@@ -47,7 +48,7 @@ typedef struct {
 typedef struct {
 	char   topic[LIVEKIT_TOPIC_SIZE];
 	char   ident[LIVEKIT_IDENT_SIZE];
-	char   payload[LIVEKIT_BUFF_SIZE];
+	char   payload[LIVEKIT_BATCH_SIZE];
 	size_t payload_size;
 } livekit_data_packet;
 

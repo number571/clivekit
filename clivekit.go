@@ -5,7 +5,7 @@ package main
 #include <string.h>
 
 #define LIVEKIT_DESC_SIZE 16
-#define LIVEKIT_BUFF_SIZE 512
+#define LIVEKIT_BATCH_SIZE 512
 #define LIVEKIT_TOPIC_SIZE 64
 #define LIVEKIT_IDENT_SIZE 64
 
@@ -14,7 +14,8 @@ package main
 #define LIVEKIT_ERRCODE_CLOSE       0x02
 #define LIVEKIT_ERRCODE_GET_ROOM    0x03
 #define LIVEKIT_ERRCODE_PUBLISH     0x04
-#define LIVEKIT_ERRCODE_CHAN_CLOSED 0x04
+#define LIVEKIT_ERRCODE_CHAN_CLOSED 0x05
+#define LIVEKIT_ERRCODE_BATCH_SIZE  0x06
 
 typedef struct {
 	char *host;
@@ -27,7 +28,7 @@ typedef struct {
 typedef struct {
 	char   topic[LIVEKIT_TOPIC_SIZE];
 	char   ident[LIVEKIT_IDENT_SIZE];
-	char   payload[LIVEKIT_BUFF_SIZE];
+	char   payload[LIVEKIT_BATCH_SIZE];
 	size_t payload_size;
 } livekit_data_packet;
 */
@@ -126,6 +127,10 @@ func livekit_read_data_from_room(room_desc *C.char, data_packet *C.livekit_data_
 
 //export livekit_write_data_to_room
 func livekit_write_data_to_room(room_desc, topic, data *C.char, data_size C.int) C.int {
+	if data_size > C.LIVEKIT_BATCH_SIZE {
+		return C.LIVEKIT_ERRCODE_BATCH_SIZE
+	}
+
 	rc, ok := getRoomContextByDesc(room_desc)
 	if !ok {
 		return C.LIVEKIT_ERRCODE_GET_ROOM
@@ -149,24 +154,19 @@ func onDataPacketCallback(roomMtx *sync.RWMutex, dpch chan *dataPack) func(data 
 		if !ok {
 			return
 		}
-		offset := C.LIVEKIT_BUFF_SIZE
-		pldLength := len(dp.Payload)
-		for i := 0; i < pldLength; i += offset {
-			end := i + offset
-			if end > pldLength {
-				end = pldLength
-			}
-			roomMtx.Lock()
-			select {
-			case dpch <- &dataPack{
-				topic:   dp.Topic,
-				ident:   params.SenderIdentity,
-				payload: dp.Payload[i:end],
-			}:
-			default:
-			}
-			roomMtx.Unlock()
+		if len(dp.Payload) > C.LIVEKIT_BATCH_SIZE {
+			return
 		}
+		roomMtx.Lock()
+		select {
+		case dpch <- &dataPack{
+			topic:   dp.Topic,
+			ident:   params.SenderIdentity,
+			payload: dp.Payload,
+		}:
+		default:
+		}
+		roomMtx.Unlock()
 	}
 }
 
