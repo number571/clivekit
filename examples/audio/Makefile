@@ -8,7 +8,7 @@ run-publisher: build
 	./publisher x
 run-subscriber: build
 	./subscriber x
-install-libsoundio: 
+install-libsoundio: build-libsoundio
 	git clone -b "2.0.1-7" https://github.com/andrewrk/libsoundio
 	sed -i 's/cmake_minimum_required(VERSION 2.8.5)/cmake_minimum_required(VERSION 3.5)/' ./libsoundio/CMakeLists.txt
 build-libsoundio:
