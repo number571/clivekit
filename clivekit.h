@@ -121,6 +121,7 @@ extern "C" {
 extern clivekit_error_type clivekit_connect_to_room(char* room_desc, clivekit_connect_info conn_info);
 extern clivekit_error_type clivekit_disconnect_from_room(char* room_desc);
 extern clivekit_error_type clivekit_add_rx_key_in_room(char* room_desc, char* ident, char* rx_key);
+extern clivekit_error_type clivekit_del_rx_key_in_room(char* room_desc, char* ident);
 extern clivekit_error_type clivekit_set_tx_key_in_room(char* room_desc, char* tx_key);
 extern clivekit_error_type clivekit_read_data_from_room(char* room_desc, clivekit_data_packet* data_packet);
 extern clivekit_error_type clivekit_write_data_to_room(char* room_desc, clivekit_data_type data_type, char* data, size_t data_size);
