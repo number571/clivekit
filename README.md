@@ -1,36 +1,41 @@
 # clivekit
 
-> The minimalist Livekit library in C language (build from Go)
+> The minimalist Livekit library in C language with E2E encryption (build from Go)
 
-### Dependencies
+## Dependencies
 
 1. Go language `version >= 1.24.6`
 2. Linker flags: `-lsoxr -lopus -lopusfile`
 
-### Build library
+## Interface functions
+
+```c
+clivekit_error_type clivekit_connect_to_room(char* room_desc, clivekit_connect_info conn_info);
+clivekit_error_type clivekit_disconnect_from_room(char* room_desc);
+clivekit_error_type clivekit_set_rx_key_to_room(char* room_desc, char* ident, char* rx_key);
+clivekit_error_type clivekit_set_tx_key_to_room(char* room_desc, char* tx_key);
+clivekit_error_type clivekit_read_data_from_room(char* room_desc, clivekit_data_packet* data_packet);
+clivekit_error_type clivekit_write_data_to_room(char* room_desc, clivekit_data_type data_type, char* data, size_t data_size);
+```
+
+## Build library
 
 ```bash
 $ make build
 ```
 
-### Example use
+## Example use
 
 Install and run livekit-server
 ```bash
 $ make install-livekit-server
-$ ./bin/livekit-server --dev
-```
-
-Compile examples
-```bash
-$ cd examples/hello
-$ make build
+$ make run-livekit-server
 ```
 
 Terminal 1
 ```bash
 $ cd examples/hello
-$ ./publisher
+$ make run-publisher
 write hello0
 write hello1
 write hello2
@@ -42,7 +47,7 @@ write hello4
 Terminal 2
 ```bash
 $ cd examples/hello
-$ ./subscriber
+$ make run-subscriber
 c-go-sdk-1 - audio - 7 - hello0 (1)
 c-go-sdk-1 - audio - 7 - hello1 (2)
 c-go-sdk-1 - audio - 7 - hello2 (3)

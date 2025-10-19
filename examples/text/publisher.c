@@ -3,17 +3,17 @@
 #include "clivekit.h" 
 
 int main() {
-    char room_desc[LIVEKIT_DESC_SIZE];
+    char room_desc[CLIVEKIT_SIZE_DESC];
 
-    livekit_connect_info conn_info = {
+    clivekit_connect_info conn_info = {
         .host = "ws://localhost:7880",
         .api_key = "devkey",
         .api_secret = "secret",
         .room_name = "test",
-        .ident = "c-go-sdk-1"
+        .ident = "publisher"
     };
 
-    int status = livekit_connect_to_room(room_desc, conn_info);
+    int status = clivekit_connect_to_room(room_desc, conn_info);
     if (status) {
         printf("connect failed\n");
         return 1;
@@ -21,20 +21,26 @@ int main() {
     
     printf("connect success\n");
 
+    char tx_key[CLIVEKIT_SIZE_ENCKEY] = {0};
+    status = clivekit_set_tx_key_to_room(room_desc, tx_key);
+    if (status) {
+        printf("set tx_key\n");
+        return 2;
+    }
+
     char msg[] = "hello_";
     while(1) {
         for(int i = 0; i < 10; i++) {
             msg[5] = '0'+(i%10);
-            int status = livekit_write_data_to_room(room_desc, "audio", msg, strlen(msg)+1);
+            int status = clivekit_write_data_to_room(room_desc, CLIVEKIT_DTYPE_TEXT, msg, strlen(msg)+1);
             if (status) {
                 printf("write failed\n");
-                return 2;
+                return 3;
             }
             printf("write %s\n", msg);
         }
-        sleep(1);
     }
 
-    livekit_disconnect_from_room(room_desc);
+    clivekit_disconnect_from_room(room_desc);
     return 0;
 }

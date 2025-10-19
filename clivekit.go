@@ -4,18 +4,27 @@ package main
 #include <stdlib.h>
 #include <string.h>
 
-#define LIVEKIT_DESC_SIZE 16
-#define LIVEKIT_BATCH_SIZE 512
-#define LIVEKIT_TOPIC_SIZE 64
-#define LIVEKIT_IDENT_SIZE 64
+#define CLIVEKIT_SIZE_DESC   16
+#define CLIVEKIT_SIZE_BUFF   512
+#define CLIVEKIT_SIZE_IDENT  32
+#define CLIVEKIT_SIZE_ENCKEY 32 // 256-bit key
 
-#define LIVEKIT_ERRCODE_SUCCESS     0x00
-#define LIVEKIT_ERRCODE_CONNECT     0x01
-#define LIVEKIT_ERRCODE_CLOSE       0x02
-#define LIVEKIT_ERRCODE_GET_ROOM    0x03
-#define LIVEKIT_ERRCODE_PUBLISH     0x04
-#define LIVEKIT_ERRCODE_CHAN_CLOSED 0x05
-#define LIVEKIT_ERRCODE_BATCH_SIZE  0x06
+typedef enum {
+	CLIVEKIT_ETYPE_SUCCESS,
+	CLIVEKIT_ETYPE_CONNECT,
+	CLIVEKIT_ETYPE_CLOSE,
+	CLIVEKIT_ETYPE_GET_ROOM,
+	CLIVEKIT_ETYPE_PUBLISH,
+	CLIVEKIT_ETYPE_RECEIVE,
+	CLIVEKIT_ETYPE_CREATE_ROOM
+} clivekit_error_type;
+
+typedef enum {
+	CLIVEKIT_DTYPE_CUSTOM,
+	CLIVEKIT_DTYPE_TEXT,
+	CLIVEKIT_DTYPE_AUDIO,
+	CLIVEKIT_DTYPE_VIDEO
+} clivekit_data_type;
 
 typedef struct {
 	char *host;
@@ -23,208 +32,189 @@ typedef struct {
 	char *api_secret;
 	char *room_name;
 	char *ident;
-} livekit_connect_info;
+} clivekit_connect_info;
 
 typedef struct {
-	char   topic[LIVEKIT_TOPIC_SIZE];
-	char   ident[LIVEKIT_IDENT_SIZE];
-	char   payload[LIVEKIT_BATCH_SIZE];
-	size_t payload_size;
-} livekit_data_packet;
+	clivekit_data_type dtype;
+	char              ident[CLIVEKIT_SIZE_IDENT];
+	char              payload[CLIVEKIT_SIZE_BUFF];
+	size_t            payload_size;
+} clivekit_data_packet;
 */
 // #cgo LDFLAGS: -lsoxr -lopus -lopusfile
 import "C"
 
 import (
+	"context"
 	"crypto/rand"
-	"sync"
 	"unsafe"
 
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	"github.com/number571/clivekit/internal/crypto"
+	"github.com/number571/clivekit/internal/room"
 )
 
 type (
-	descType [C.LIVEKIT_DESC_SIZE]byte
+	descType [C.CLIVEKIT_SIZE_DESC]byte
 )
 
 var (
-	gMutex = sync.RWMutex{}
-	gRCMap = make(map[descType]*roomContext)
+	roomManager = room.NewRoomManager()
 )
 
-type roomContext struct {
-	mtx  *sync.RWMutex
-	desc descType
-	room *lksdk.Room
-	dpch chan *dataPack
-}
-
-type dataPack struct {
-	topic   string
-	ident   string
-	payload []byte
-}
-
-//export livekit_connect_to_room
-func livekit_connect_to_room(room_desc *C.char, conn_info C.livekit_connect_info) C.int {
-	roomMtx := &sync.RWMutex{}
-	connInfo := lksdk.ConnectInfo{
-		APIKey:              C.GoString(conn_info.api_key),
-		APISecret:           C.GoString(conn_info.api_secret),
-		RoomName:            C.GoString(conn_info.room_name),
-		ParticipantIdentity: C.GoString(conn_info.ident),
-	}
-
-	dpch := make(chan *dataPack, 2048)
-	roomCallback := &lksdk.RoomCallback{
-		ParticipantCallback: lksdk.ParticipantCallback{
-			OnDataPacket: onDataPacketCallback(roomMtx, dpch),
+//export clivekit_connect_to_room
+func clivekit_connect_to_room(room_desc *C.char, conn_info C.clivekit_connect_info) C.clivekit_error_type {
+	connInfo := &room.ConnectInfo{
+		Host:     C.GoString(conn_info.host),
+		BuffSize: C.CLIVEKIT_SIZE_BUFF,
+		ConnectInfo: lksdk.ConnectInfo{
+			APIKey:              C.GoString(conn_info.api_key),
+			APISecret:           C.GoString(conn_info.api_secret),
+			RoomName:            C.GoString(conn_info.room_name),
+			ParticipantIdentity: C.GoString(conn_info.ident),
 		},
 	}
 
-	room, err := lksdk.ConnectToRoom(C.GoString(conn_info.host), connInfo, roomCallback)
+	room, err := room.ConnectToSecureRoom(connInfo)
 	if err != nil {
-		return C.LIVEKIT_ERRCODE_CONNECT
+		return C.CLIVEKIT_ETYPE_CONNECT
 	}
 
-	return createRoomContext(room_desc, roomMtx, room, dpch)
+	if ok := createRoomContext(room_desc, room); !ok {
+		room.Close()
+		return C.CLIVEKIT_ETYPE_CREATE_ROOM
+	}
+
+	return C.CLIVEKIT_ETYPE_SUCCESS
 }
 
-//export livekit_disconnect_from_room
-func livekit_disconnect_from_room(room_desc *C.char) C.int {
+//export clivekit_disconnect_from_room
+func clivekit_disconnect_from_room(room_desc *C.char) C.clivekit_error_type {
 	if ok := closeRoomContextByDesc(room_desc); !ok {
-		return C.LIVEKIT_ERRCODE_CLOSE
+		return C.CLIVEKIT_ETYPE_CLOSE
 	}
-	return C.LIVEKIT_ERRCODE_SUCCESS
+	return C.CLIVEKIT_ETYPE_SUCCESS
 }
 
-//export livekit_read_data_from_room
-func livekit_read_data_from_room(room_desc *C.char, data_packet *C.livekit_data_packet) C.int {
-	rc, ok := getRoomContextByDesc(room_desc)
+//export clivekit_set_rx_key_to_room
+func clivekit_set_rx_key_to_room(room_desc, ident, rx_key *C.char) C.clivekit_error_type {
+	rc, _, ok := getRoomContextByDesc(room_desc)
 	if !ok {
-		return C.LIVEKIT_ERRCODE_GET_ROOM
+		return C.CLIVEKIT_ETYPE_GET_ROOM
 	}
 
-	td, ok := <-rc.dpch
-	if !ok {
-		return C.LIVEKIT_ERRCODE_CHAN_CLOSED
-	}
-
-	cPayloadSize := C.size_t(len(td.payload))
-
-	cIdent := C.CString(td.ident)
-	cTopic := C.CString(td.topic)
-	defer C.free(unsafe.Pointer(cIdent))
-	defer C.free(unsafe.Pointer(cTopic))
-
-	data_packet.payload_size = cPayloadSize
-	C.strncpy(&data_packet.topic[0], cTopic, C.size_t(len(td.topic)+1))
-	C.strncpy(&data_packet.ident[0], cIdent, C.size_t(len(td.ident)+1))
-	C.memcpy(unsafe.Pointer(&data_packet.payload), unsafe.Pointer(&td.payload[0]), cPayloadSize)
-
-	return C.LIVEKIT_ERRCODE_SUCCESS
+	key := C.GoBytes(unsafe.Pointer(rx_key), C.CLIVEKIT_SIZE_ENCKEY)
+	rc.GetCipherManager().AddRX(C.GoString(ident), crypto.NewCipher(key))
+	return C.CLIVEKIT_ETYPE_SUCCESS
 }
 
-//export livekit_write_data_to_room
-func livekit_write_data_to_room(room_desc, topic, data *C.char, data_size C.int) C.int {
-	if data_size > C.LIVEKIT_BATCH_SIZE {
-		return C.LIVEKIT_ERRCODE_BATCH_SIZE
-	}
-
-	rc, ok := getRoomContextByDesc(room_desc)
+//export clivekit_set_tx_key_to_room
+func clivekit_set_tx_key_to_room(room_desc, tx_key *C.char) C.clivekit_error_type {
+	rc, _, ok := getRoomContextByDesc(room_desc)
 	if !ok {
-		return C.LIVEKIT_ERRCODE_GET_ROOM
+		return C.CLIVEKIT_ETYPE_GET_ROOM
 	}
 
-	goData := C.GoBytes(unsafe.Pointer(data), data_size)
-	err := rc.room.LocalParticipant.PublishDataPacket(
-		lksdk.UserData(goData),
-		lksdk.WithDataPublishTopic(C.GoString(topic)),
-	)
+	key := C.GoBytes(unsafe.Pointer(tx_key), C.CLIVEKIT_SIZE_ENCKEY)
+	rc.GetCipherManager().SetTX(crypto.NewCipher(key))
+	return C.CLIVEKIT_ETYPE_SUCCESS
+}
+
+//export clivekit_read_data_from_room
+func clivekit_read_data_from_room(room_desc *C.char, data_packet *C.clivekit_data_packet) C.clivekit_error_type {
+	rc, _, ok := getRoomContextByDesc(room_desc)
+	if !ok {
+		return C.CLIVEKIT_ETYPE_GET_ROOM
+	}
+
+	td, err := rc.ReceiveDataPacket(context.Background())
 	if err != nil {
-		return C.LIVEKIT_ERRCODE_PUBLISH
+		return C.CLIVEKIT_ETYPE_RECEIVE
 	}
 
-	return C.LIVEKIT_ERRCODE_SUCCESS
+	cPayloadSize := C.size_t(len(td.Payload))
+	cIdent := C.CString(td.Ident)
+	defer C.free(unsafe.Pointer(cIdent))
+
+	data_packet.dtype = C.clivekit_data_type(td.Type)
+	data_packet.payload_size = cPayloadSize
+	C.memcpy(unsafe.Pointer(&data_packet.ident), unsafe.Pointer(cIdent), C.size_t(len(td.Ident)+1))
+	C.memcpy(unsafe.Pointer(&data_packet.payload), unsafe.Pointer(&td.Payload[0]), cPayloadSize)
+
+	return C.CLIVEKIT_ETYPE_SUCCESS
 }
 
-func onDataPacketCallback(roomMtx *sync.RWMutex, dpch chan *dataPack) func(data lksdk.DataPacket, params lksdk.DataReceiveParams) {
-	return func(data lksdk.DataPacket, params lksdk.DataReceiveParams) {
-		dp, ok := data.(*lksdk.UserDataPacket)
-		if !ok {
-			return
-		}
-		if len(dp.Payload) > C.LIVEKIT_BATCH_SIZE {
-			return
-		}
-		roomMtx.Lock()
-		select {
-		case dpch <- &dataPack{
-			topic:   dp.Topic,
-			ident:   params.SenderIdentity,
-			payload: dp.Payload,
-		}:
-		default:
-		}
-		roomMtx.Unlock()
-	}
-}
+//export clivekit_write_data_to_room
+func clivekit_write_data_to_room(room_desc *C.char, data_type C.clivekit_data_type, data *C.char, data_size C.size_t) C.clivekit_error_type {
+	ctx := context.Background()
 
-func createRoomContext(cRoomDesc *C.char, mtx *sync.RWMutex, room *lksdk.Room, dpch chan *dataPack) C.int {
-	goRoomDesc := genGoDesc()
-	gMutex.Lock()
-	gRCMap[goRoomDesc] = &roomContext{
-		mtx:  mtx,
-		desc: goRoomDesc,
-		room: room,
-		dpch: dpch,
-	}
-	gMutex.Unlock()
-	setGoDesc(cRoomDesc, goRoomDesc)
-	return C.LIVEKIT_ERRCODE_SUCCESS
-}
-
-func getRoomContextByDesc(cRoomDesc *C.char) (*roomContext, bool) {
-	gMutex.RLock()
-	v, ok := gRCMap[getGoDesc(cRoomDesc)]
-	gMutex.RUnlock()
-	return v, ok
-}
-
-func closeRoomContextByDesc(cRoomDesc *C.char) bool {
-	rc, ok := getRoomContextByDesc(cRoomDesc)
+	rc, _, ok := getRoomContextByDesc(room_desc)
 	if !ok {
+		return C.CLIVEKIT_ETYPE_GET_ROOM
+	}
+
+	var (
+		fullPayload = C.GoBytes(unsafe.Pointer(data), C.int(data_size))
+		fullPldSize = uint64(data_size)
+		sDataPacket = &room.DataPacket{Type: convertDataType(data_type)}
+	)
+
+	for i := uint64(0); i < fullPldSize; i += C.CLIVEKIT_SIZE_BUFF {
+		end := i + C.CLIVEKIT_SIZE_BUFF
+		if end > fullPldSize {
+			end = fullPldSize
+		}
+		sDataPacket.Payload = fullPayload[i:end]
+		if err := rc.PublishDataPacket(ctx, sDataPacket); err != nil {
+			return C.CLIVEKIT_ETYPE_PUBLISH
+		}
+	}
+
+	return C.CLIVEKIT_ETYPE_SUCCESS
+}
+
+func convertDataType(data_type C.clivekit_data_type) room.DataType {
+	switch data_type {
+	case C.CLIVEKIT_DTYPE_CUSTOM:
+		return room.CustomDataType
+	case C.CLIVEKIT_DTYPE_TEXT:
+		return room.TextDataType
+	case C.CLIVEKIT_DTYPE_AUDIO:
+		return room.AudioDataType
+	case C.CLIVEKIT_DTYPE_VIDEO:
+		return room.VideoDataType
+	}
+	panic("unknown data type")
+}
+
+func createRoomContext(cRoomDesc *C.char, room room.ISecureRoom) bool {
+	var goRoomDesc descType
+	if _, err := rand.Read(goRoomDesc[:]); err != nil {
 		return false
 	}
-
-	gMutex.Lock()
-	rc.mtx.Lock()
-
-	rc.room.Disconnect()
-	delete(gRCMap, rc.desc)
-	close(rc.dpch)
-
-	rc.mtx.Unlock()
-	gMutex.Unlock()
-
+	if ok := roomManager.Set(goRoomDesc[:], room); !ok {
+		return false
+	}
+	C.memcpy(unsafe.Pointer(cRoomDesc), unsafe.Pointer(&goRoomDesc[0]), C.CLIVEKIT_SIZE_DESC)
 	return true
 }
 
-func setGoDesc(cDesc *C.char, goDesc descType) {
-	C.memcpy(unsafe.Pointer(cDesc), unsafe.Pointer(&goDesc[0]), C.LIVEKIT_DESC_SIZE)
+func getRoomContextByDesc(cRoomDesc *C.char) (room.ISecureRoom, descType, bool) {
+	var goRoomDesc descType
+	loadDesc := C.GoBytes(unsafe.Pointer(cRoomDesc), C.CLIVEKIT_SIZE_DESC)
+	copy(goRoomDesc[:], loadDesc)
+	v, ok := roomManager.Get(goRoomDesc[:])
+	return v.(room.ISecureRoom), goRoomDesc, ok
 }
 
-func getGoDesc(cDesc *C.char) descType {
-	var goDesc descType
-	loadDesc := C.GoBytes(unsafe.Pointer(cDesc), C.LIVEKIT_DESC_SIZE)
-	copy(goDesc[:], loadDesc)
-	return goDesc
-}
-
-func genGoDesc() descType {
-	var desc descType
-	_, _ = rand.Read(desc[:])
-	return desc
+func closeRoomContextByDesc(cRoomDesc *C.char) bool {
+	rc, desc, ok := getRoomContextByDesc(cRoomDesc)
+	if !ok {
+		return false
+	}
+	roomManager.Del(desc[:])
+	rc.Close()
+	return true
 }
 
 func main() {
