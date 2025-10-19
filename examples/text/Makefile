@@ -1,4 +1,4 @@
-.PHONY: default build build-clivekit run-publisher run-subscriber
+.PHONY: default build run-publisher run-subscriber
 default: build 
 build:
 	cp ../../clivekit.h ../../clivekit.a .
