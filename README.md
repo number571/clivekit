@@ -48,10 +48,10 @@ Terminal 2
 ```bash
 $ cd examples/text
 $ make run-subscriber
-c-go-sdk-1 - audio - 7 - hello0 (1)
-c-go-sdk-1 - audio - 7 - hello1 (2)
-c-go-sdk-1 - audio - 7 - hello2 (3)
-c-go-sdk-1 - audio - 7 - hello3 (4)
-c-go-sdk-1 - audio - 7 - hello4 (5)
+publisher - 1 - 7 - hello0 (1)
+publisher - 1 - 7 - hello1 (2)
+publisher - 1 - 7 - hello2 (3)
+publisher - 1 - 7 - hello3 (4)
+publisher - 1 - 7 - hello4 (5)
 ...
 ```
