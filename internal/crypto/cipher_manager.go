@@ -29,6 +29,12 @@ func (p *cipherManager) AddRX(k string, v ICipher) {
 	p.mtx.Unlock()
 }
 
+func (p *cipherManager) DelRX(k string) {
+	p.mtx.Lock()
+	delete(p.rxs, k)
+	p.mtx.Unlock()
+}
+
 func (p *cipherManager) GetTX() (ICipher, bool) {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()

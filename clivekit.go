@@ -96,8 +96,8 @@ func clivekit_disconnect_from_room(room_desc *C.char) C.clivekit_error_type {
 	return C.CLIVEKIT_ETYPE_SUCCESS
 }
 
-//export clivekit_set_rx_key_to_room
-func clivekit_set_rx_key_to_room(room_desc, ident, rx_key *C.char) C.clivekit_error_type {
+//export clivekit_add_rx_key_in_room
+func clivekit_add_rx_key_in_room(room_desc, ident, rx_key *C.char) C.clivekit_error_type {
 	rc, _, ok := getRoomContextByDesc(room_desc)
 	if !ok {
 		return C.CLIVEKIT_ETYPE_GET_ROOM
@@ -108,8 +108,19 @@ func clivekit_set_rx_key_to_room(room_desc, ident, rx_key *C.char) C.clivekit_er
 	return C.CLIVEKIT_ETYPE_SUCCESS
 }
 
-//export clivekit_set_tx_key_to_room
-func clivekit_set_tx_key_to_room(room_desc, tx_key *C.char) C.clivekit_error_type {
+//export clivekit_del_rx_key_in_room
+func clivekit_del_rx_key_in_room(room_desc, ident *C.char) C.clivekit_error_type {
+	rc, _, ok := getRoomContextByDesc(room_desc)
+	if !ok {
+		return C.CLIVEKIT_ETYPE_GET_ROOM
+	}
+
+	rc.GetCipherManager().DelRX(C.GoString(ident))
+	return C.CLIVEKIT_ETYPE_SUCCESS
+}
+
+//export clivekit_set_tx_key_in_room
+func clivekit_set_tx_key_in_room(room_desc, tx_key *C.char) C.clivekit_error_type {
 	rc, _, ok := getRoomContextByDesc(room_desc)
 	if !ok {
 		return C.CLIVEKIT_ETYPE_GET_ROOM

@@ -12,10 +12,13 @@
 ```c
 clivekit_error_type clivekit_connect_to_room(char* room_desc, clivekit_connect_info conn_info);
 clivekit_error_type clivekit_disconnect_from_room(char* room_desc);
-clivekit_error_type clivekit_set_rx_key_to_room(char* room_desc, char* ident, char* rx_key);
-clivekit_error_type clivekit_set_tx_key_to_room(char* room_desc, char* tx_key);
+
 clivekit_error_type clivekit_read_data_from_room(char* room_desc, clivekit_data_packet* data_packet);
 clivekit_error_type clivekit_write_data_to_room(char* room_desc, clivekit_data_type data_type, char* data, size_t data_size);
+
+clivekit_error_type clivekit_add_rx_key_in_room(char* room_desc, char* ident, char* rx_key);
+clivekit_error_type clivekit_del_rx_key_in_room(char* room_desc, char* ident);
+clivekit_error_type clivekit_set_tx_key_in_room(char* room_desc, char* tx_key);
 ```
 
 ## Build library

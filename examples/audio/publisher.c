@@ -284,7 +284,7 @@ int main(int argc, char **argv) {
     printf("connect success\n");
 
     char tx_key[CLIVEKIT_SIZE_ENCKEY] = {0};
-    status = clivekit_set_tx_key_to_room(room_desc, tx_key);
+    status = clivekit_set_tx_key_in_room(room_desc, tx_key);
     if (status) {
         printf("set tx_key\n");
         return 2;

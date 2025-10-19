@@ -22,7 +22,7 @@ int main() {
     printf("connect success\n");
 
     char rx_key[CLIVEKIT_SIZE_ENCKEY] = {0};
-    status = clivekit_set_rx_key_to_room(room_desc, "publisher", rx_key);
+    status = clivekit_add_rx_key_in_room(room_desc, "publisher", rx_key);
     if (status) {
         printf("set rx_key\n");
         return 2;
