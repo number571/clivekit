@@ -97,7 +97,7 @@ func (p *secureRoom) PublishDataPacket(_ context.Context, dataPack *DataPacket) 
 	if err != nil {
 		return err
 	}
-	isReliable := dataPack.Type == TextDataType
+	isReliable := (dataPack.Type == TextDataType) || (dataPack.Type == SignalDataType)
 	return p.lksdkRoom.LocalParticipant.PublishDataPacket(
 		lksdk.UserData(encData),
 		lksdk.WithDataPublishTopic(fmt.Sprintf("%d", dataPack.Type)),

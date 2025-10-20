@@ -22,6 +22,7 @@ typedef enum {
 typedef enum {
 	CLIVEKIT_DTYPE_CUSTOM,
 	CLIVEKIT_DTYPE_TEXT,
+	CLIVEKIT_DTYPE_SIGNAL,
 	CLIVEKIT_DTYPE_AUDIO,
 	CLIVEKIT_DTYPE_VIDEO
 } clivekit_data_type;
@@ -190,6 +191,8 @@ func convertDataType(data_type C.clivekit_data_type) room.DataType {
 		return room.CustomDataType
 	case C.CLIVEKIT_DTYPE_TEXT:
 		return room.TextDataType
+	case C.CLIVEKIT_DTYPE_SIGNAL:
+		return room.SignalDataType
 	case C.CLIVEKIT_DTYPE_AUDIO:
 		return room.AudioDataType
 	case C.CLIVEKIT_DTYPE_VIDEO:

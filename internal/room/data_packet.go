@@ -11,6 +11,7 @@ type DataType int
 const (
 	CustomDataType DataType = iota
 	TextDataType
+	SignalDataType
 	AudioDataType
 	VideoDataType
 
