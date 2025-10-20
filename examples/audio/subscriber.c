@@ -131,61 +131,12 @@ static void underflow_callback(struct SoundIoOutStream *outstream) {
     soundio_ring_buffer_advance_write_ptr(rc->ring_buffer, capacity_row);
 }
 
-static int usage(char *exe) {
-    fprintf(stderr, "Usage: %s [options] outfile\n"
-            "Options:\n"
-            "  [--backend dummy|alsa|pulseaudio|jack|coreaudio|wasapi]\n"
-            "  [--device id]\n"
-            "  [--raw]\n"
-            , exe);
-    return 1;
-}
-
 int main(int argc, char **argv) {
     char *exe = argv[0];
     enum SoundIoBackend backend = SoundIoBackendNone;
     char *device_id = NULL;
     bool is_raw = false;
     char *infile = NULL;
-    for (int i = 1; i < argc; i += 1) {
-        char *arg = argv[i];
-        if (arg[0] == '-' && arg[1] == '-') {
-            if (strcmp(arg, "--raw") == 0) {
-                is_raw = true;
-            } else if (++i >= argc) {
-                return usage(exe);
-            } else if (strcmp(arg, "--backend") == 0) {
-                if (strcmp("dummy", argv[i]) == 0) {
-                    backend = SoundIoBackendDummy;
-                } else if (strcmp("alsa", argv[i]) == 0) {
-                    backend = SoundIoBackendAlsa;
-                } else if (strcmp("pulseaudio", argv[i]) == 0) {
-                    backend = SoundIoBackendPulseAudio;
-                } else if (strcmp("jack", argv[i]) == 0) {
-                    backend = SoundIoBackendJack;
-                } else if (strcmp("coreaudio", argv[i]) == 0) {
-                    backend = SoundIoBackendCoreAudio;
-                } else if (strcmp("wasapi", argv[i]) == 0) {
-                    backend = SoundIoBackendWasapi;
-                } else {
-                    fprintf(stderr, "Invalid backend: %s\n", argv[i]);
-                    return 1;
-                }
-            } else if (strcmp(arg, "--device") == 0) {
-                device_id = argv[i];
-            } else {
-                return usage(exe);
-            }
-        } else if (!infile) {
-            infile = argv[i];
-        } else {
-            return usage(exe);
-        }
-    }
-
-    if (!infile)
-        return usage(exe);
-
     struct RecordContext rc;
 
     struct SoundIo *soundio = soundio_create();
