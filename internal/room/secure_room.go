@@ -17,6 +17,7 @@ var (
 type secureRoom struct {
 	mtx           *sync.RWMutex
 	lksdkRoom     *lksdk.Room
+	buffSize      int
 	closed        chan struct{}
 	dataPackCh    chan *DataPacket
 	cipherManager crypto.ICipherManager
@@ -36,9 +37,10 @@ func ConnectToSecureRoom(connInfo *ConnectInfo) (ISecureRoom, error) {
 		dataPackCh    = make(chan *DataPacket, 2048)
 	)
 
+	buffSize := connInfo.BuffSize
 	roomCallback := &lksdk.RoomCallback{
 		ParticipantCallback: lksdk.ParticipantCallback{
-			OnDataPacket: onDataPacketCallback(mtx, closed, connInfo.BuffSize, cipherManager, dataPackCh),
+			OnDataPacket: onDataPacketCallback(mtx, closed, buffSize, cipherManager, dataPackCh),
 		},
 	}
 
@@ -50,6 +52,7 @@ func ConnectToSecureRoom(connInfo *ConnectInfo) (ISecureRoom, error) {
 	return &secureRoom{
 		mtx:           mtx,
 		closed:        closed,
+		buffSize:      buffSize,
 		lksdkRoom:     lksdkRoom,
 		dataPackCh:    dataPackCh,
 		cipherManager: cipherManager,
@@ -89,14 +92,20 @@ func (p *secureRoom) ReceiveDataPacket(ctx context.Context) (*DataPacket, error)
 }
 
 func (p *secureRoom) PublishDataPacket(_ context.Context, dataPack *DataPacket) error {
+	if len(dataPack.Payload) > p.buffSize {
+		return ErrBuffSize
+	}
+
 	cipher, ok := p.cipherManager.GetTX()
 	if !ok {
 		return ErrGetTXCipher
 	}
+
 	encData, err := cipher.Encrypt(dataPack.Payload)
 	if err != nil {
 		return err
 	}
+
 	isReliable := (dataPack.Type == TextDataType) || (dataPack.Type == SignalDataType)
 	return p.lksdkRoom.LocalParticipant.PublishDataPacket(
 		lksdk.UserData(encData),
@@ -117,40 +126,43 @@ func onDataPacketCallback(
 		if !ok {
 			return
 		}
+
 		ident := params.SenderIdentity
 		cipher, ok := cipherManager.GetRX(ident)
 		if !ok {
 			return
 		}
+
 		decPld, err := cipher.Decrypt(dp.Payload)
 		if err != nil {
 			return
 		}
+
+		pldSize := len(decPld)
+		if pldSize > buffSize {
+			return
+		}
+
 		dataType, err := strconv.Atoi(dp.Topic)
 		if err != nil || dataType >= int(endDataType) {
 			return
 		}
-		pldSize := len(decPld)
-		for i := 0; i < pldSize; i += buffSize {
-			end := i + buffSize
-			if end > pldSize {
-				end = pldSize
-			}
-			roomMtx.Lock()
-			select {
-			case <-closed:
-				return
-			default:
-			}
-			select {
-			case dataPackCh <- &DataPacket{
-				Type:    DataType(dataType),
-				Ident:   ident,
-				Payload: decPld[i:end],
-			}:
-			default:
-			}
-			roomMtx.Unlock()
+
+		roomMtx.Lock()
+		defer roomMtx.Unlock()
+
+		select {
+		case <-closed:
+			return
+		default:
+		}
+		select {
+		case dataPackCh <- &DataPacket{
+			Type:    DataType(dataType),
+			Ident:   ident,
+			Payload: decPld,
+		}:
+		default:
 		}
 	}
 }
