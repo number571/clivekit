@@ -5,9 +5,9 @@ package main
 #include <string.h>
 
 #define CLIVEKIT_SIZE_DESC   16
-#define CLIVEKIT_SIZE_BUFF   512
 #define CLIVEKIT_SIZE_IDENT  32
 #define CLIVEKIT_SIZE_ENCKEY 32 // 256-bit key
+#define CLIVEKIT_SIZE_BUFFER 4096
 
 typedef enum {
 	CLIVEKIT_ETYPE_SUCCESS,
@@ -38,7 +38,7 @@ typedef struct {
 typedef struct {
 	clivekit_data_type dtype;
 	char              ident[CLIVEKIT_SIZE_IDENT];
-	char              payload[CLIVEKIT_SIZE_BUFF];
+	char              payload[CLIVEKIT_SIZE_BUFFER];
 	size_t            payload_size;
 } clivekit_data_packet;
 */
@@ -67,7 +67,7 @@ var (
 func clivekit_connect_to_room(room_desc *C.char, conn_info C.clivekit_connect_info) C.clivekit_error_type {
 	connInfo := &room.ConnectInfo{
 		Host:     C.GoString(conn_info.host),
-		BuffSize: C.CLIVEKIT_SIZE_BUFF,
+		BuffSize: C.CLIVEKIT_SIZE_BUFFER,
 		ConnectInfo: lksdk.ConnectInfo{
 			APIKey:              C.GoString(conn_info.api_key),
 			APISecret:           C.GoString(conn_info.api_secret),
@@ -171,8 +171,8 @@ func clivekit_write_data_to_room(room_desc *C.char, data_type C.clivekit_data_ty
 		sDataPacket = &room.DataPacket{Type: convertDataType(data_type)}
 	)
 
-	for i := uint64(0); i < fullPldSize; i += C.CLIVEKIT_SIZE_BUFF {
-		end := i + C.CLIVEKIT_SIZE_BUFF
+	for i := uint64(0); i < fullPldSize; i += C.CLIVEKIT_SIZE_BUFFER {
+		end := i + C.CLIVEKIT_SIZE_BUFFER
 		if end > fullPldSize {
 			end = fullPldSize
 		}

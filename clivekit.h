@@ -25,9 +25,9 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 #include <string.h>
 
 #define CLIVEKIT_SIZE_DESC   16
-#define CLIVEKIT_SIZE_BUFF   512
 #define CLIVEKIT_SIZE_IDENT  32
 #define CLIVEKIT_SIZE_ENCKEY 32 // 256-bit key
+#define CLIVEKIT_SIZE_BUFFER 4096
 
 typedef enum {
 	CLIVEKIT_ETYPE_SUCCESS,
@@ -58,7 +58,7 @@ typedef struct {
 typedef struct {
 	clivekit_data_type dtype;
 	char              ident[CLIVEKIT_SIZE_IDENT];
-	char              payload[CLIVEKIT_SIZE_BUFF];
+	char              payload[CLIVEKIT_SIZE_BUFFER];
 	size_t            payload_size;
 } clivekit_data_packet;
 

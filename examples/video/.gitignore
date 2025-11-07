@@ -1,0 +1,9 @@
+main 
+capture.raw
+output.raw
+output.mp4
+publisher
+subscriber
+clivekit.h
+reader_pipe.ts
+writer_pipe.ts 
